@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Extract source maps from a given URL."""
 # TODO: разобраться почему среди соурсов многократно встречаются одинаковые файлы
-# типа webpack://./src/App.vue, webpack:///src/App.vue и webpack://./src/App.vue?abcd
+# типа webpack:///./src/App.vue, webpack:///src/App.vue и webpack:///./src/App.vue?abcd
 import argparse
 import ast
 import functools
@@ -121,16 +121,16 @@ def main(argv: Sequence[str] | None = None) -> None:
             q.join()
             for t in threads:
                 t.join()
+            echo(Color.yellow('All tasks completed!'))
         else:
             echo(Color.red('nothing is found :-('))
     except Exception as e:
         echo(Color.red(f'unexpected error: {e}'))
 
 
-def normalize_source_path(path: str) -> str:
+def normalize_webpack_path(path: str) -> str:
     assert path.startswith('webpack://')
-    path = path[len('webpack://') :]
-    return path.lstrip('/')
+    return path[len('webpack://') :].lstrip('/')
 
 
 def save_sources(
@@ -142,14 +142,15 @@ def save_sources(
     for path, contents in zip(
         source_map['sources'], source_map['sourcesContent']
     ):
-        path = normalize_source_path(path)
+        path = normalize_webpack_path(path)
+        echo(Color.blue(f'{path=}'))
         file_path = (output_dir / path).resolve()
         # Проверка на выход за пределы каталога
         if not file_path.is_relative_to(output_dir):
             echo(Color.red(f'ouf of directory: {file_path}'))
             continue
         if file_path.exists():
-            echo(Color.cyan(f'already exists: {file_path}'))
+            echo(Color.red(f'already exists: {file_path}'))
             continue
         file_path.parent.mkdir(parents=True, exist_ok=True)
         if match := WEBPACK_PUBLIC_PATH_RE.search(contents):

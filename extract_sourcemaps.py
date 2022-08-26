@@ -48,8 +48,7 @@ def main() -> None:
         '-o',
         '--output',
         help='output directory',
-        type=pathlib.Path,
-        default=pathlib.Path('output'),
+        default='output',
     )
     parser.add_argument(
         '-w',
@@ -59,7 +58,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     target_url = args.url
-    output_dir = args.output / urlsplit(target_url).netloc
+    output_dir = pathlib.Path(args.output) / urlsplit(target_url).netloc
 
     client = get_client()
 

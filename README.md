@@ -1,9 +1,14 @@
 Extract source maps from a given URL.
 
+Use pyenv to install latest python version and make it global.
+
+Install requirements if needed.
+
 Usage:
 
 ```bash
-./extract_sourcemaps.py <url>
+./extract_sourcemaps.py [OPTIONS] <target url>
+./extract_sourcemaps.py -h
 ```
 
 How To Search Source Maps:

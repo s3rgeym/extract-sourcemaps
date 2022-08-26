@@ -1,4 +1,4 @@
-Extract source maps from a given URL.
+Extract source maps from a given URL. Test on Vue.js and React apps.
 
 Use pyenv to install latest python version and make it global.
 

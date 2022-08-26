@@ -31,7 +31,7 @@ WEBPACK_PUBLIC_PATH_RE = re.compile(
 )
 
 requests.packages.urllib3.disable_warnings()
-stderr = functools.partial(print, file=sys.stderr)
+echo = functools.partial(print, file=sys.stderr)
 
 
 CSI = '\033['
@@ -122,9 +122,9 @@ def main(argv: Sequence[str] | None = None) -> None:
             for t in threads:
                 t.join()
         else:
-            stderr(Color.red('nothing is found :-('))
+            echo(Color.red('nothing is found :-('))
     except Exception as e:
-        stderr(Color.red(f'unexpected error: {e}'))
+        echo(Color.red(f'unexpected error: {e}'))
 
 
 def normalize_source_path(path: str) -> str:
@@ -146,10 +146,10 @@ def save_sources(
         file_path = (output_dir / path).resolve()
         # Проверка на выход за пределы каталога
         if not file_path.is_relative_to(output_dir):
-            stderr(Color.red(f'ouf of directory: {file_path}'))
+            echo(Color.red(f'ouf of directory: {file_path}'))
             continue
         if file_path.exists():
-            stderr(Color.cyan(f'already exists: {file_path}'))
+            echo(Color.cyan(f'already exists: {file_path}'))
             continue
         file_path.parent.mkdir(parents=True, exist_ok=True)
         if match := WEBPACK_PUBLIC_PATH_RE.search(contents):
@@ -158,12 +158,12 @@ def save_sources(
             r = client.get(asset_url, verify=False)
             if r.status_code == 200:
                 file_path.write_bytes(r.content)
-                stderr(Color.green(f'asset saved: {file_path}'))
+                echo(Color.green(f'asset saved: {file_path}'))
             else:
-                stderr(Color.red(f'asset not found: {asset_url}'))
+                echo(Color.red(f'asset not found: {asset_url}'))
         else:
             file_path.write_text(contents)
-            stderr(Color.green(f'saved: {file_path}'))
+            echo(Color.green(f'saved: {file_path}'))
 
 
 def extract_sourcemaps(q: queue.Queue, output_dir: pathlib.Path) -> None:
@@ -173,16 +173,16 @@ def extract_sourcemaps(q: queue.Queue, output_dir: pathlib.Path) -> None:
             sourcemap_url = q.get()
             r = client.get(sourcemap_url, verify=False)
             if not (r.status_code == 200 and 'webpack://' in r.text):
-                stderr(Color.red(f'source map not found: {sourcemap_url}'))
+                echo(Color.red(f'source map not found: {sourcemap_url}'))
                 continue
             try:
                 data = r.json()
             except requests.exceptions.JSONDecodeError:
-                stderr(Color.red(f'invalid source map: {sourcemap_url}'))
+                echo(Color.red(f'invalid source map: {sourcemap_url}'))
                 continue
             save_sources(data, output_dir, sourcemap_url, client)
         except Exception as e:
-            stderr(Color.red(f'error: {e}'))
+            echo(Color.red(f'error: {e}'))
         finally:
             q.task_done()
 

@@ -14,6 +14,9 @@ import bs4
 import requests
 
 FILENAME_RE = re.compile(r'/(?:chunk\w+|app)\.[0-9a-f]{8,}\.js$')
+ASSET_MODULE_RE = re.compile(
+    r'module.exports = __webpack_public_path__ \+ "([^"]+)";'
+)
 
 requests.packages.urllib3.disable_warnings()
 stderr = functools.partial(print, file=sys.stderr)
@@ -92,36 +95,53 @@ def normalize_source_path(path: str) -> str:
     return path.lstrip('./')
 
 
-def save_sources(source_map: SourceMapDict, output_dir: pathlib.Path) -> None:
+def save_sources(
+    source_map: SourceMapDict,
+    output_dir: pathlib.Path,
+    sourcemap_url: str,
+    client: requests.Session,
+) -> None:
     for path, contents in zip(
         source_map['sources'], source_map['sourcesContent']
     ):
         path = normalize_source_path(path)
+        if '?' in path:
+            stderr('skip path:', path)
+            continue
         file_path = output_dir / path
         if file_path.exists():
             stderr('already exists:', path)
             continue
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        with file_path.open('w') as f:
-            f.write(contents)
-        stderr('saved:', file_path)
+        if m := ASSET_MODULE_RE.fullmatch(contents):
+            asset_path = m.group(1)
+            asset_url = urljoin(sourcemap_url, '/' + asset_path)
+            r = client.get(asset_url, verify=False)
+            if r.status_code == 200:
+                file_path.write_bytes(r.content)
+                stderr('asset saved:', file_path)
+            else:
+                stderr('asset not found:', asset_url)
+        else:
+            file_path.write_text(contents)
+            stderr('source saved:', file_path)
 
 
 def extract_sourcemaps(q: queue.Queue, output_dir: pathlib.Path) -> None:
     client = get_client()
     while not q.empty():
         try:
-            u = q.get()
-            r = client.get(u, verify=False)
+            sourcemap_url = q.get()
+            r = client.get(sourcemap_url, verify=False)
             if not (r.status_code == 200 and 'webpack://' in r.text):
-                stderr('source map not found:', u)
+                stderr('source map not found:', sourcemap_url)
                 continue
             try:
                 data = r.json()
             except requests.exceptions.JSONDecodeError:
-                stderr('invalid source map:', u)
+                stderr('invalid source map:', sourcemap_url)
                 continue
-            save_sources(data, output_dir)
+            save_sources(data, output_dir, sourcemap_url, client)
         except Exception as e:
             stderr('error:', e)
         finally:

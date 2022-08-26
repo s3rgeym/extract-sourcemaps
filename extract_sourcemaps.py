@@ -13,7 +13,7 @@ from urllib.parse import urljoin, urlsplit
 import bs4
 import requests
 
-OUTPUT_FILENAME_RE = re.compile(r'/(?:chunk\w+|app)\.[0-9a-f]{8,}\.js$')
+FILENAME_RE = re.compile(r'/(?:chunk\w+|app)\.[0-9a-f]{8,}\.js$')
 
 requests.packages.urllib3.disable_warnings()
 stderr = functools.partial(print, file=sys.stderr)
@@ -66,7 +66,7 @@ def main() -> None:
     try:
         r = client.get(target_url, verify=False)
         s = bs4.BeautifulSoup(r.text, 'lxml')
-        if scripts := s.find_all('script', src=OUTPUT_FILENAME_RE):
+        if scripts := s.find_all('script', src=FILENAME_RE):
             q = queue.Queue()
             for scr in scripts:
                 u = urljoin(r.url, scr['src'] + '.map')

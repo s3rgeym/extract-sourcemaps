@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 """Extract source maps from a given URL."""
+# TODO: разобраться почему среди соурсов многократно встречаются одинаковые файлы
+# типа webpack://./src/App.vue, webpack:///src/App.vue и webpack://./src/App.vue?abcd
 import argparse
 import ast
 import functools
@@ -8,6 +10,7 @@ import queue
 import re
 import sys
 import threading
+from enum import Enum, auto
 from typing import Sequence, TypedDict
 from urllib.parse import urljoin, urlsplit
 
@@ -29,6 +32,25 @@ WEBPACK_PUBLIC_PATH_RE = re.compile(
 
 requests.packages.urllib3.disable_warnings()
 stderr = functools.partial(print, file=sys.stderr)
+
+
+CSI = '\033['
+
+
+class Color(Enum):
+    black = 30
+    red = auto()
+    green = auto()
+    yellow = auto()
+    blue = auto()
+    magenta = auto()
+    cyan = auto()
+    white = auto()
+
+    def wrap(self, s: str) -> str:
+        return f'{CSI}{self.value}m{s}{CSI}0m'
+
+    __call__ = wrap
 
 
 def enquote(s: str) -> str:
@@ -100,9 +122,9 @@ def main(argv: Sequence[str] | None = None) -> None:
             for t in threads:
                 t.join()
         else:
-            stderr('nothing is found :-(')
+            stderr(Color.red('nothing is found :-('))
     except Exception as e:
-        stderr('unexpected error:', e)
+        stderr(Color.red(f'unexpected error: {e}'))
 
 
 def normalize_source_path(path: str) -> str:
@@ -124,10 +146,10 @@ def save_sources(
         file_path = (output_dir / path).resolve()
         # Проверка на выход за пределы каталога
         if not file_path.is_relative_to(output_dir):
-            stderr('ouf of directory:', file_path)
+            stderr(Color.red(f'ouf of directory: {file_path}'))
             continue
         if file_path.exists():
-            stderr('already exists:', file_path)
+            stderr(Color.cyan(f'already exists: {file_path}'))
             continue
         file_path.parent.mkdir(parents=True, exist_ok=True)
         if match := WEBPACK_PUBLIC_PATH_RE.search(contents):
@@ -136,12 +158,12 @@ def save_sources(
             r = client.get(asset_url, verify=False)
             if r.status_code == 200:
                 file_path.write_bytes(r.content)
-                stderr('asset saved:', file_path)
+                stderr(Color.green(f'asset saved: {file_path}'))
             else:
-                stderr('asset not found:', asset_url)
+                stderr(Color.red(f'asset not found: {asset_url}'))
         else:
             file_path.write_text(contents)
-            stderr('source saved:', file_path)
+            stderr(Color.green(f'saved: {file_path}'))
 
 
 def extract_sourcemaps(q: queue.Queue, output_dir: pathlib.Path) -> None:
@@ -151,16 +173,16 @@ def extract_sourcemaps(q: queue.Queue, output_dir: pathlib.Path) -> None:
             sourcemap_url = q.get()
             r = client.get(sourcemap_url, verify=False)
             if not (r.status_code == 200 and 'webpack://' in r.text):
-                stderr('source map not found:', sourcemap_url)
+                stderr(Color.red(f'source map not found: {sourcemap_url}'))
                 continue
             try:
                 data = r.json()
             except requests.exceptions.JSONDecodeError:
-                stderr('invalid source map:', sourcemap_url)
+                stderr(Color.red(f'invalid source map: {sourcemap_url}'))
                 continue
             save_sources(data, output_dir, sourcemap_url, client)
         except Exception as e:
-            stderr('error:', e)
+            stderr(Color.red(f'error: {e}'))
         finally:
             q.task_done()
 

@@ -1,25 +1,38 @@
 #!/usr/bin/env python
 """Extract source maps from a given URL."""
 import argparse
+import ast
 import functools
 import pathlib
 import queue
 import re
 import sys
 import threading
-from typing import TypedDict
+from typing import Sequence, TypedDict
 from urllib.parse import urljoin, urlsplit
 
 import bs4
 import requests
 
 FILENAME_RE = re.compile(r'/(?:chunk\w+|app)\.[0-9a-f]{8,}\.js$')
-ASSET_MODULE_RE = re.compile(
-    r'module.exports = __webpack_public_path__ \+ "([^"]+)";'
+
+# React
+# ...
+# export default __webpack_public_path__ + '...'
+# ...
+# Vue
+# module.exports = __webpack_public_path__ + "...";
+
+WEBPACK_PUBLIC_PATH_RE = re.compile(
+    r'__webpack_public_path__ \+ (\'(?:\\\'|[^\'])*\'|"(?:\\"|[^"])*")'
 )
 
 requests.packages.urllib3.disable_warnings()
 stderr = functools.partial(print, file=sys.stderr)
+
+
+def enquote(s: str) -> str:
+    return ast.literal_eval(s)
 
 
 class SourceMapDict(TypedDict):
@@ -41,7 +54,7 @@ def get_client() -> requests.Session:
     return client
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -49,6 +62,7 @@ def main() -> None:
     parser.add_argument('url', help='target url')
     parser.add_argument(
         '-o',
+        '--output-dir',
         '--output',
         help='output directory',
         default='output',
@@ -59,9 +73,11 @@ def main() -> None:
         help='number of worker threads',
         default=10,
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     target_url = args.url
-    output_dir = pathlib.Path(args.output) / urlsplit(target_url).netloc
+    output_dir = (
+        pathlib.Path(args.output_dir).resolve() / urlsplit(target_url).netloc
+    )
 
     client = get_client()
 
@@ -92,7 +108,7 @@ def main() -> None:
 def normalize_source_path(path: str) -> str:
     assert path.startswith('webpack://')
     path = path[len('webpack://') :]
-    return path.lstrip('./')
+    return path.lstrip('/')
 
 
 def save_sources(
@@ -105,16 +121,17 @@ def save_sources(
         source_map['sources'], source_map['sourcesContent']
     ):
         path = normalize_source_path(path)
-        if '?' in path:
-            stderr('skip path:', path)
+        file_path = (output_dir / path).resolve()
+        # Проверка на выход за пределы каталога
+        if not file_path.is_relative_to(output_dir):
+            stderr('ouf of directory:', file_path)
             continue
-        file_path = output_dir / path
         if file_path.exists():
-            stderr('already exists:', path)
+            stderr('already exists:', file_path)
             continue
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        if m := ASSET_MODULE_RE.fullmatch(contents):
-            asset_path = m.group(1)
+        if match := WEBPACK_PUBLIC_PATH_RE.search(contents):
+            asset_path = enquote(match.group(1))
             asset_url = urljoin(sourcemap_url, '/' + asset_path)
             r = client.get(asset_url, verify=False)
             if r.status_code == 200:
@@ -149,4 +166,4 @@ def extract_sourcemaps(q: queue.Queue, output_dir: pathlib.Path) -> None:
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

@@ -1,0 +1,4 @@
+var render = function () {var _vm=this;var _h=_vm.$createElement;var _c=_vm._self._c||_h;return _c('div',{staticClass:"app",class:{bg_active3: _vm.activeSlide == 0 && _vm.lastSlide == 3, bg_active2: _vm.activeSlide == 0 && _vm.lastSlide == 2, bg_active: (_vm.activeSlide == 0 && _vm.lastSlide == 0 && _vm.mainPage) || (_vm.activeSlide == 0 && _vm.lastSlide == 1 && _vm.mainPage), bg_delay2: _vm.activeSlide == 2, bg_delay3: _vm.activeSlide == 3, bg_delay1: _vm.activeSlide == 1},attrs:{"id":"app"}},[_c('navigation'),_vm._v(" "),_c('achors'),_vm._v(" "),_c('transition',{attrs:{"name":"slide-in"}},[_c('router-view')],1),_vm._v(" "),_c('contacts')],1)}
+var staticRenderFns = []
+
+export { render, staticRenderFns }

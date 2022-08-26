@@ -1,3 +1,4 @@
 requests
+cchardet
 beautifulsoup4
 lxml

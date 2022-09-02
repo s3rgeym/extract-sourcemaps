@@ -16,6 +16,9 @@ from urllib.parse import urljoin, urlsplit
 import bs4
 import requests
 
+WEBPACK_IDENTIFIER = 'webpackJsonp'
+
+# Любые имена могут быть
 FILENAME_RE = re.compile(r'/(?:chunk\w+|app)\.[0-9a-f]{8,}\.js$')
 
 # React
@@ -118,11 +121,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         r = client.get(target_url, verify=False)
         s = bs4.BeautifulSoup(r.text, 'lxml')
-        if scripts := s.find_all('script', src=FILENAME_RE):
+        # if scripts := s.find_all('script', src=FILENAME_RE):
+        base_sp = urlsplit(r.url)
+        # Webpack умеет собирать скрипты под любыми именами
+        if scripts := s.find_all('script', src=True)
             q = queue.Queue()
             for scr in scripts:
-                u = urljoin(r.url, scr['src'] + '.map')
-                q.put_nowait(u)
+                u = urljoin(r.url, scr['src'])
+                if urlsplit(u).netloc == base_sp.netloc:
+                    q.put_nowait(u + '.map')
             threads = []
             for _ in range(min(q.qsize(), args.workers)):
                 t = threading.Thread(
